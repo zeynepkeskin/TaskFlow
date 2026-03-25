@@ -1,48 +1,50 @@
-import './App.css';
+import "./App.css";
 import { useState, useEffect } from "react";
 
 function App() {
+  const [activeTaskId, setActiveTaskId] = useState(null);
   const [timeLeft, setTimeLeft] = useState(1500); // 25 min in seconds
-const [isRunning, setIsRunning] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
 
-const startTimer = () => {
-  if (timeLeft > 0) {
-    setIsRunning(true);
-  }
-};
+  const [newDuration, setNewDuration] = useState(25); // minutes
 
-const stopTimer = () => {
-  setIsRunning(false);
-};
+  const startTimer = () => {
+    if (timeLeft > 0) {
+      setIsRunning(true);
+    }
+  };
 
-const resetTimer = () => {
-  setIsRunning(false);
-  setTimeLeft(1500);
-};
+  const stopTimer = () => {
+    setIsRunning(false);
+  };
 
-const formatTime = (seconds) => {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-};
+  const resetTimer = () => {
+    setIsRunning(false);
+    setTimeLeft(1500);
+  };
 
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
 
-useEffect(() => {
-  if (!isRunning) return;
+  useEffect(() => {
+    if (!isRunning) return;
 
-  const interval = setInterval(() => {
-    setTimeLeft(prev => {
-      if (prev <= 1) {
-        clearInterval(interval);
-        setIsRunning(false);
-        return 0;
-      }
-      return prev - 1;
-    });
-  }, 1000);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          setIsRunning(false);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
 
-  return () => clearInterval(interval);
-}, [isRunning]);
+    return () => clearInterval(interval);
+  }, [isRunning]);
 
   // Load from localStorage on startup
   const [tasks, setTasks] = useState(() => {
@@ -64,7 +66,8 @@ useEffect(() => {
     const task = {
       id: Date.now(),
       title: newTask,
-      completed: false
+      duration: newDuration * 60, // store in seconds
+      completed: false,
     };
 
     setTasks([...tasks, task]);
@@ -73,10 +76,8 @@ useEffect(() => {
 
   // Toggle complete
   const toggleTask = (id) => {
-    const updatedTasks = tasks.map(task =>
-      task.id === id
-        ? { ...task, completed: !task.completed }
-        : task
+    const updatedTasks = tasks.map((task) =>
+      task.id === id ? { ...task, completed: !task.completed } : task,
     );
 
     setTasks(updatedTasks);
@@ -84,25 +85,32 @@ useEffect(() => {
 
   return (
     <div style={{ padding: "20px" }}>
-      <h1>Focus Coach</h1>
+      <h1>tbd</h1>
 
       {/* Input */}
-      <input onKeyDown={(e) => {
-  if (e.key === "Enter") addTask();
-}}
+      <input
+        onKeyDown={(e) => {
+          if (e.key === "Enter") addTask();
+        }}
         type="text"
         placeholder="Enter a task"
         value={newTask}
         onChange={(e) => setNewTask(e.target.value)}
       />
-
+      <input
+        type="number"
+        value={newDuration}
+        onChange={(e) => setNewDuration(Number(e.target.value))}
+        placeholder="Minutes"
+        style={{ width: "60px", marginLeft: "10px" }}
+      />
       <button onClick={addTask}>Add Task</button>
 
       {/* Task List */}
       <ul>
-        {tasks.map(task => (
+        {tasks.map((task) => (
           <li key={task.id}>
-            <input 
+            <input
               type="checkbox"
               checked={task.completed}
               onChange={() => toggleTask(task.id)}
@@ -110,23 +118,36 @@ useEffect(() => {
             <span
               style={{
                 textDecoration: task.completed ? "line-through" : "none",
-                marginLeft: "8px"
+                marginLeft: "8px",
               }}
             >
               {task.title}
             </span>
+            <button
+              onClick={() => {
+                setActiveTaskId(task.id);
+                setTimeLeft(task.duration);
+                setIsRunning(true);
+              }}
+            >
+              Focus
+            </button>
           </li>
         ))}
       </ul>
       <div style={{ marginTop: "20px" }}>
-  <h2>Focus Timer</h2>
+        <h2>Timer</h2>
 
-  <h3>{formatTime(timeLeft)}</h3>
+        <h3>{formatTime(timeLeft)}</h3>
 
-  <button onClick={startTimer} disabled={isRunning}>Start</button>
-  <button onClick={stopTimer} disabled={!isRunning}>Stop</button>
-  <button onClick={resetTimer}>Reset</button>
-</div>
+        <button onClick={startTimer} disabled={isRunning}>
+          Start
+        </button>
+        <button onClick={stopTimer} disabled={!isRunning}>
+          Stop
+        </button>
+        <button onClick={resetTimer}>Reset</button>
+      </div>
     </div>
   );
 }
