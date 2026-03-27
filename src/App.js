@@ -2,22 +2,42 @@ import "./App.css";
 import { useState, useEffect } from "react";
 
 function App() {
-  const [activeTaskId, setActiveTaskId] = useState(null);
-  const [timeLeft, setTimeLeft] = useState(1500); // 25 min in seconds
-  const [isRunning, setIsRunning] = useState(false);
-  const [sessionComplete, setSessionComplete] = useState(false);
-  const [newDuration, setNewDuration] = useState(25); // minutes
-const [showCompletedToday, setShowCompletedToday] = useState(false);
-const [manualMinutes, setManualMinutes] = useState(25);
-const formatMinutes = (seconds) => {
-  const mins = Math.floor(seconds / 60);
-  return `${mins} min`;
-};
 
+  /* =========================
+     STATE (CORE APP STATE)
+  ========================= */
+
+  const [activeTaskId, setActiveTaskId] = useState(null); // currently focused task
+  const [timeLeft, setTimeLeft] = useState(1500); // timer (seconds)
+  const [isRunning, setIsRunning] = useState(false); // timer running state
+  const [sessionComplete, setSessionComplete] = useState(false); // session finished flag
+
+  const [newDuration, setNewDuration] = useState(25); // task duration (minutes)
+  const [manualMinutes, setManualMinutes] = useState(25); // manual timer input
+
+  const [showCompletedToday, setShowCompletedToday] = useState(false); // toggle UI section
+
+
+  /* =========================
+     FORMAT HELPERS
+  ========================= */
+
+  // Convert seconds → "X min"
+  const formatMinutes = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    return `${mins} min`;
+  };
+
+
+  /* =========================
+     TASK MANAGEMENT
+  ========================= */
+
+  // Delete a task
   const deleteTask = (id) => {
     setTasks(tasks.filter((task) => task.id !== id));
 
-    // If the deleted task is currently active → reset timer
+    // If deleting active task → reset timer
     if (id === activeTaskId) {
       setActiveTaskId(null);
       setIsRunning(false);
@@ -25,83 +45,104 @@ const formatMinutes = (seconds) => {
     }
   };
 
-    // Load from localStorage on startup
+  // Load tasks from localStorage on startup
   const [tasks, setTasks] = useState(() => {
     const saved = localStorage.getItem("tasks");
     return saved ? JSON.parse(saved) : [];
   });
 
- const getTodayCompletedTasks = () => {
-  const today = new Date();
+  // Get tasks completed today
+  const getTodayCompletedTasks = () => {
+    const today = new Date();
 
-  return tasks.filter(task => {
-    if (!task.completed || !task.completedAt) return false;
+    return tasks.filter(task => {
+      if (!task.completed || !task.completedAt) return false;
 
-    const completedDate = new Date(task.completedAt);
+      const completedDate = new Date(task.completedAt);
 
-    return (
-      completedDate.getFullYear() === today.getFullYear() &&
-      completedDate.getMonth() === today.getMonth() &&
-      completedDate.getDate() === today.getDate()
-    );
-  });
-};
-const todayCompletedTasks = getTodayCompletedTasks();
-
- const finishSession = () => {
-  setIsRunning(false);
-  setSessionComplete(true);
-
-  if (activeTaskId) {
-    const timeSpent = (tasks.find(t => t.id === activeTaskId)?.duration || 1500) - timeLeft;
-
-    setTasks(prevTasks =>
-      prevTasks.map(task => {
-        if (task.id === activeTaskId) {
-          return {
-            ...task,
-            completed: true,
-            completedAt: new Date().toISOString(),
-
-            // NEW:
-            sessions: [
-              ...(task.sessions || []),
-              {
-                date: new Date().toISOString(),
-                duration: timeSpent
-              }
-            ]
-          };
-        }
-        return task;
-      })
-    );
-  }
-  setTimeLeft(0);
-};
-const getTodayFocusTime = () => {
-  const today = new Date();
-
-  let total = 0;
-
-  tasks.forEach(task => {
-    if (!task.sessions) return;
-
-    task.sessions.forEach(session => {
-      const d = new Date(session.date);
-
-      if (
-        d.getFullYear() === today.getFullYear() &&
-        d.getMonth() === today.getMonth() &&
-        d.getDate() === today.getDate()
-      ) {
-        total += session.duration;
-      }
+      return (
+        completedDate.getFullYear() === today.getFullYear() &&
+        completedDate.getMonth() === today.getMonth() &&
+        completedDate.getDate() === today.getDate()
+      );
     });
-  });
+  };
 
-  return total;
-};
+  const todayCompletedTasks = getTodayCompletedTasks();
+
+
+  /* =========================
+     SESSION / TIMER COMPLETION
+  ========================= */
+
+  const finishSession = () => {
+    setIsRunning(false);
+    setSessionComplete(true);
+
+    // If tied to a task → log session + mark complete
+    if (activeTaskId) {
+      const timeSpent =
+        (tasks.find(t => t.id === activeTaskId)?.duration || 1500) - timeLeft;
+
+      setTasks(prevTasks =>
+        prevTasks.map(task => {
+          if (task.id === activeTaskId) {
+            return {
+              ...task,
+              completed: true,
+              completedAt: new Date().toISOString(),
+
+              // Track session history
+              sessions: [
+                ...(task.sessions || []),
+                {
+                  date: new Date().toISOString(),
+                  duration: timeSpent
+                }
+              ]
+            };
+          }
+          return task;
+        })
+      );
+    }
+
+    setTimeLeft(0);
+  };
+
+
+  /* =========================
+     ANALYTICS / STATS
+  ========================= */
+
+  // Calculate total focus time today
+  const getTodayFocusTime = () => {
+    const today = new Date();
+    let total = 0;
+
+    tasks.forEach(task => {
+      if (!task.sessions) return;
+
+      task.sessions.forEach(session => {
+        const d = new Date(session.date);
+
+        if (
+          d.getFullYear() === today.getFullYear() &&
+          d.getMonth() === today.getMonth() &&
+          d.getDate() === today.getDate()
+        ) {
+          total += session.duration;
+        }
+      });
+    });
+
+    return total;
+  };
+
+
+  /* =========================
+     TIMER CONTROLS
+  ========================= */
 
   const startTimer = () => {
     if (timeLeft > 0) {
@@ -109,6 +150,7 @@ const getTodayFocusTime = () => {
       setIsRunning(true);
     }
   };
+
   const stopTimer = () => {
     setIsRunning(false);
   };
@@ -119,11 +161,17 @@ const getTodayFocusTime = () => {
     setTimeLeft(1500);
   };
 
+  // Format seconds → mm:ss
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
   };
+
+
+  /* =========================
+     TIMER EFFECT (COUNTDOWN)
+  ========================= */
 
   useEffect(() => {
     if (!isRunning) return;
@@ -132,7 +180,7 @@ const getTodayFocusTime = () => {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          finishSession(); // ← reuse logic
+          finishSession(); // reuse logic
           return 0;
         }
         return prev - 1;
@@ -143,21 +191,35 @@ const getTodayFocusTime = () => {
   }, [isRunning]);
 
 
+  /* =========================
+     TASK INPUT STATE
+  ========================= */
+
   const [newTask, setNewTask] = useState("");
 
-  // Save to localStorage whenever tasks change
+
+  /* =========================
+     PERSISTENCE
+  ========================= */
+
+  // Save tasks to localStorage
   useEffect(() => {
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }, [tasks]);
 
-  // Add task
+
+  /* =========================
+     TASK ACTIONS
+  ========================= */
+
+  // Add new task
   const addTask = () => {
     if (!newTask.trim()) return;
 
     const task = {
       id: Date.now(),
       title: newTask,
-      duration: newDuration * 60, // store in seconds
+      duration: newDuration * 60,
       completed: false,
     };
 
@@ -165,33 +227,38 @@ const getTodayFocusTime = () => {
     setNewTask("");
   };
 
-  // Toggle complete
+  // Toggle task completion
   const toggleTask = (id) => {
-  const updatedTasks = tasks.map(task => {
-    if (task.id === id) {
-      if (task.completed) {
-        // unchecking → remove timestamp
-        return { ...task, completed: false, completedAt: null };
-      } else {
-        // checking → add timestamp
-        return { 
-          ...task, 
-          completed: true, 
-          completedAt: new Date().toISOString() 
-        };
+    const updatedTasks = tasks.map(task => {
+      if (task.id === id) {
+        if (task.completed) {
+          // unchecking → remove timestamp
+          return { ...task, completed: false, completedAt: null };
+        } else {
+          // checking → add timestamp
+          return {
+            ...task,
+            completed: true,
+            completedAt: new Date().toISOString()
+          };
+        }
       }
-    }
-    return task;
-  });
+      return task;
+    });
 
-  setTasks(updatedTasks);
-};
+    setTasks(updatedTasks);
+  };
+
+
+  /* =========================
+     UI
+  ========================= */
 
   return (
     <div style={{ padding: "20px" }}>
       <h1>tbd</h1>
 
-      {/* Input */}
+      {/* TASK INPUT */}
       <input
         onKeyDown={(e) => {
           if (e.key === "Enter") addTask();
@@ -201,6 +268,7 @@ const getTodayFocusTime = () => {
         value={newTask}
         onChange={(e) => setNewTask(e.target.value)}
       />
+
       <input
         type="number"
         value={newDuration}
@@ -208,9 +276,11 @@ const getTodayFocusTime = () => {
         placeholder="Minutes"
         style={{ width: "60px", marginLeft: "10px" }}
       />
+
       <button onClick={addTask}>Add Task</button>
 
-      {/* Task List */}
+
+      {/* TASK LIST */}
       <ul>
         {tasks.map((task) => (
           <li
@@ -228,6 +298,7 @@ const getTodayFocusTime = () => {
               checked={task.completed}
               onChange={() => toggleTask(task.id)}
             />
+
             <span
               style={{
                 textDecoration: task.completed ? "line-through" : "none",
@@ -235,6 +306,8 @@ const getTodayFocusTime = () => {
               }}
             >
               {task.title}
+
+              {/* Active task indicator */}
               {task.id === activeTaskId && (
                 <span
                   style={{
@@ -247,9 +320,11 @@ const getTodayFocusTime = () => {
                 </span>
               )}
             </span>
+
+            {/* Start focus session */}
             <button
               onClick={() => {
-                if (isRunning) return; // block switching
+                if (isRunning) return; // prevent switching mid-session
                 setSessionComplete(false);
                 setActiveTaskId(task.id);
                 setTimeLeft(task.duration || 1500);
@@ -259,6 +334,8 @@ const getTodayFocusTime = () => {
             >
               Focus
             </button>
+
+            {/* Delete task */}
             <button
               onClick={() => deleteTask(task.id)}
               style={{ marginLeft: "10px" }}
@@ -268,38 +345,47 @@ const getTodayFocusTime = () => {
           </li>
         ))}
       </ul>
+
+
+      {/* TIMER CONTROLS */}
       <div style={{ marginTop: "20px" }}>
-      <div>
-  <input
-    type="number"
-    value={manualMinutes}
-    onChange={(e) => setManualMinutes(Number(e.target.value))}
-    style={{ width: "60px" }}
-  />
-  <button
-    onClick={() => {
-      setActiveTaskId(null); // not tied to a task
-      setTimeLeft(manualMinutes * 60);
-      setSessionComplete(false);
-      setIsRunning(false);
-    }}
-  >
-    Set Timer
-  </button>
-</div>
-       <h2>
-  Timer {activeTaskId ? "(Task Mode)" : "(Manual Mode)"}
-</h2>
+        <div>
+          {/* Manual timer input */}
+          <input
+            type="number"
+            value={manualMinutes}
+            onChange={(e) => setManualMinutes(Number(e.target.value))}
+            style={{ width: "60px" }}
+          />
+
+          <button
+            onClick={() => {
+              setActiveTaskId(null); // manual mode
+              setTimeLeft(manualMinutes * 60);
+              setSessionComplete(false);
+              setIsRunning(false);
+            }}
+          >
+            Set Timer
+          </button>
+        </div>
+
+        <h2>
+          Timer {activeTaskId ? "(Task Mode)" : "(Manual Mode)"}
+        </h2>
 
         <h3>{formatTime(timeLeft)}</h3>
 
         <button onClick={startTimer} disabled={isRunning}>
           Start
         </button>
+
         <button onClick={stopTimer} disabled={!isRunning}>
           Stop
         </button>
+
         <button onClick={resetTimer}>Reset</button>
+
         <button
           onClick={finishSession}
           disabled={!isRunning}
@@ -308,29 +394,40 @@ const getTodayFocusTime = () => {
           Finish Early
         </button>
       </div>
+
+
+      {/* SESSION COMPLETE MESSAGE */}
       {sessionComplete && (
         <div style={{ marginTop: "10px", color: "green", fontWeight: "bold" }}>
           Session Complete ✅
         </div>
       )}
-     <div style={{ marginTop: "20px" }}>
-     <h3>Focus Time Today: {formatMinutes(getTodayFocusTime())}</h3>
-  <h3 
-    onClick={() => setShowCompletedToday(prev => !prev)}
-    style={{ cursor: "pointer" }}
-  >
-    Tasks Completed Today: {todayCompletedTasks.length}
-  </h3>
-  {showCompletedToday && (
-  <ul>
-    {todayCompletedTasks.map(task => (
-      <li key={task.id}>
-        {task.title}
-      </li>
-    ))}
-  </ul>
-)}
-</div>
+
+
+      {/* STATS */}
+      <div style={{ marginTop: "20px" }}>
+        <h3>
+          Focus Time Today: {formatMinutes(getTodayFocusTime())}
+        </h3>
+
+        <h3
+          onClick={() => setShowCompletedToday(prev => !prev)}
+          style={{ cursor: "pointer" }}
+        >
+          Tasks Completed Today: {todayCompletedTasks.length}
+        </h3>
+
+        {/* Toggle completed tasks list */}
+        {showCompletedToday && (
+          <ul>
+            {todayCompletedTasks.map(task => (
+              <li key={task.id}>
+                {task.title}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
